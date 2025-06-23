@@ -4,7 +4,7 @@ import pandas as pd
 import os
 
 
-keywords = ["이스라엘", "이란"]
+keywords = ["이스라엘", "이란"] #예시
 pytrends = TrendReq(hl='ko', tz=540)
 pytrends.build_payload(keywords, timeframe='now 1-H')
 data = pytrends.interest_over_time()
