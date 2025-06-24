@@ -6,7 +6,7 @@ if not os.path.exists(desktop):
     os.makedirs(desktop)
 
 file_path = os.path.join(desktop, "my_data.txt")
-data ='입력'
+data =''
 while(1):
     now = input("저장할 내용을 입력하세요: ")
     if now == "exit":
