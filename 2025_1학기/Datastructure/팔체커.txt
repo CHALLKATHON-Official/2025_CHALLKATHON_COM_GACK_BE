@@ -1,0 +1,18 @@
+팔체커
+
+# pseudo code
+def parChecker(parSeq):
+	S = []
+	for i in parSeq:
+		if i == "(":
+			S.append(i)
+		elif i == ")":
+			if len(S) == 0:
+				return False
+			elif S[len(S)-1] == "(":
+				S.pop()
+	if len(S) == 0:
+			return True
+		return False
+
+print(parChecker(input()))
