@@ -197,7 +197,8 @@ def play() -> None:
     '습니다','의','측','과','것','이','및','때','제','위','안','바','그',
     '수','기타','정','폭','때문','등','더','주','라며','또',
     '로','매우','뒤','율','날','곳','전','저','후','말','며','도','지금','당시','약','이후','팀','남','회','로서','순','년','장','관'
-    ,'명','최근','지난','이후','통해'])
+    ,'명','최근','지난','이후','통해','방','앱','무','치','단','재','응','세','또','또한','속보','셀','사회','향','이유','경향신문'
+    , '기', '자', '해', '여러', '후회', '주중', '즉시','주제','강연서','언급','팩','황','다른','종합','준','순식간','얼마나','개월','첫','달'])
     counted_text = []
     sizeof_text = []
 
@@ -206,7 +207,13 @@ def play() -> None:
         song,kim = count_words(words, stop_words, start_rank, end_rank)
         counted_text.append(song)
         sizeof_text.append(kim)
-    print(sizeof_text)
-    print(counted_text[3])
+    words = {}
+    for i in range(6):
+        for j in counted_text[i]:
+            if j in words:
+                words[j] += int(counted_text[i][j] / sizeof_text[i]*10000)
+            else:
+                words[j] = int(counted_text[i][j] / sizeof_text[i]*10000)
+    print(words)
 
 play()

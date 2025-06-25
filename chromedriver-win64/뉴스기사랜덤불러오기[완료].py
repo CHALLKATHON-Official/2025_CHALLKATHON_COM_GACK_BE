@@ -16,17 +16,16 @@ def take_txt(rss_url):
         return content.get_text(strip=True) if content else "본문 없음"
 
     articlesS = []
-    for entry in feed.entries[:1]:  # 최신 10개만
+    for entry in feed.entries[:2]:  # 최신 10개만
         url = entry.link
         text = get_article_text(url)
         articlesS.append({"title": entry.title, "url": url, "text": text})
         print(entry.title)
-        time.sleep(0.1)
+        time.sleep(0.05)
 
     articles = []
-    for i in range(1):
+    for i in range(2):
         articles.append(articlesS[0])
-
 
     def get_article_text(url):
         # 크롬 옵션 설정
@@ -44,7 +43,7 @@ def take_txt(rss_url):
 
         try:
             driver.get(url)
-            time.sleep(2)  # 페이지 로딩 대기
+            time.sleep(0.5)  # 페이지 로딩 대기
 
             html = driver.page_source
             soup = BeautifulSoup(html, "html.parser")
@@ -54,7 +53,7 @@ def take_txt(rss_url):
                 {"tag": "article"},
                 {"tag": "div", "attrs": {"id": "articleBody"}},
                 {"tag": "div", "attrs": {"class": "news_body"}},
-                {"tag": "div", "attrs": {"class": "article"}},
+                {"tag": "div", "attrs": {"class": "article"}}
             ]
 
             for cand in candidates:
@@ -78,23 +77,21 @@ def take_txt(rss_url):
     sep_text = []*6
     # 예시 실행
     if __name__ == "__main__":
-        all_text = " "
         urls = []
         for i in articles:
             urls.append(i["url"])
-        #보수3 진보2 KBS(공영)1
         for i in range(len(urls)):
             url = urls[i] #여기에 이제, 신문사들의 main 홈페이지가 들어갈 예정
             article_text = get_article_text(url)
-            all_text += article_text
             sep_text.append(article_text)
-        return all_text
+        return sep_text
 Arcs = []
 Arcs.append(take_txt("https://www.chosun.com/arc/outboundfeeds/rss/?outputType=xml"))
 Arcs.append(take_txt("http://rss.donga.com/total.xml"))
 Arcs.append(take_txt("https://news.kbs.co.kr/include/aispeaker/rss/radioNews_g.xml"))
 Arcs.append(take_txt("http://www.khan.co.kr/rss/rssdata/total_news.xml"))
 Arcs.append(take_txt("https://www.pressian.com/api/v3/site/rss/news"))
+
 
 #여기부터 단어 분석 시작!  [250624]
 
@@ -277,7 +274,7 @@ class HashOpenAddr:
         return self.search(key)
     def __setitem__(self, key, value):
         self.set(key, value)
-# ---------------------------------------해쉬테이블
+# ---------------------------------------해쉬테이블 Arcs에 5개씩 5개 들어있음! 
 
 # 텍스트 전처리 (특수문자, 구두점 등 불필요한 심볼 제거)
 def preprocess_text(text: str,language) -> list[str]:
@@ -322,16 +319,45 @@ def play() -> None:
     '습니다','의','측','과','것','이','및','때','제','위','안','바','그',
     '수','기타','정','폭','때문','등','더','주','라며','또',
     '로','매우','뒤','율','날','곳','전','저','후','말','며','도','지금','당시','약','이후','팀','남','회','로서','순','년','장','관'
-    ,'명','최근','지난','이후','통해','탁','단','김용','기자','사','돔','루','역사상','임','뉴스','섹터','구독','를','임'])
+    ,'명','최근','지난','이후','통해','탁','단','김용','기자','사','돔','루','역사상','임','뉴스','섹터','구독','를','임','공유','복사'
+    ,'창','방','사사건건','퍼','가기','국','꼭','인','중계방송','크랩','위해','도움말','모습','방송','무','짝','부','재방송',
+    '톡','살','뉴스라인','센터','선'])
     counted_text = []
     sizeof_text = []
-
+    print(Arcs[0][0])
+    print("----------------------------------------------------------------------------------")
+    print(Arcs[0][1])
     for i in range(len(Arcs)):
-        words = preprocess_text(Arcs[i],language)
-        song,kim = count_words(words, stop_words, start_rank, end_rank)
-        counted_text.append(song)
-        sizeof_text.append(kim)
-    print(counted_text)
-    print(sizeof_text)
+        for j in range(len(Arcs[i])):
+            words = preprocess_text(Arcs[i][j],language)
+            song,kim = count_words(words, stop_words, start_rank, end_rank)
+            counted_text.append(song)
+            sizeof_text.append(kim)
+    return counted_text, sizeof_text
 
-play()
+T, S = play() #각 크기에 맞게 점수화 하기
+word_score = {}
+
+now = 0
+for i in T:
+    for j in i:
+        if j in word_score:
+            word_score[j] += int((i[j]/S[now]*1000))
+        else:
+            word_score[j] = int((i[j]/S[now]*1000))
+    now+=1
+
+print(word_score) # 75개의 기사가 합쳐진 score
+
+#여기서부터 연관어 처리!
+
+#T는 데이터 세트 (5칸짜리 리스트 내 15개씩 딕셔너리(단어개수 분석됨)이 들어있다.) S는 총 개수(여기서 의미 없을듯)
+def Related_words():
+    rel_list = []
+    for i in range(len(T)):
+        for j in range(len(T[i])):
+            sorted_dict = list((sorted(T[i].items(), key=lambda item: item[1])))
+            rel_list.append(sorted_dict[:5])
+    return rel_list
+print("------------------------------------------------")
+print(Related_words())
