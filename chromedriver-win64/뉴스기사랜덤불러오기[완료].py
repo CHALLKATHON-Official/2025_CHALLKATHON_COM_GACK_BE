@@ -6,28 +6,27 @@ import time
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.chrome.options import Options
+import pandas as pd
 
 def take_txt(rss_url):
     feed = feedparser.parse(rss_url)
-    def get_article_text(url):
+    def get_article_text(url): #기사의 링크만 가져오기 목적
         res = requests.get(url, headers={"User-Agent": "Mozilla/5.0"})
         soup = BeautifulSoup(res.text, "html.parser")
         content = soup.find("div", {"class": "article_content"})
         return content.get_text(strip=True) if content else "본문 없음"
 
     articlesS = []
-    for entry in feed.entries[:2]:  # 최신 10개만
+    for entry in feed.entries[:15]:  # 최신 10개만
+
         url = entry.link
-        text = get_article_text(url)
-        articlesS.append({"title": entry.title, "url": url, "text": text})
-        print(entry.title)
-        time.sleep(0.05)
-
+        articlesS.append(url)
+        time.sleep(0.5)
+#articlesS에 객체 형태로 저장되어있음! => url 접근키는 .url
     articles = []
-    for i in range(2):
-        articles.append(articlesS[0])
-
-    def get_article_text(url):
+    for i in range(len(articlesS)):
+        articles.append(articlesS[i])
+    def get_article_textK(url):
         # 크롬 옵션 설정
         chrome_options = Options()
         chrome_options.add_argument("--headless")  # 브라우저 안 띄우기
@@ -63,7 +62,7 @@ def take_txt(rss_url):
                     content = soup.find(cand["tag"])
                 if content:
                     text = content.get_text(separator="\n", strip=True)
-                    if len(text) > 200:  # 짧은 광고 등 걸러냄
+                    if len(text) > 300:  # 짧은 광고 등 걸러냄
                         return text
 
             # fallback: 모든 <p> 태그 합치기
@@ -74,15 +73,11 @@ def take_txt(rss_url):
         finally:
             driver.quit()
 
-    sep_text = []*6
+    sep_text = []
     # 예시 실행
     if __name__ == "__main__":
-        urls = []
-        for i in articles:
-            urls.append(i["url"])
-        for i in range(len(urls)):
-            url = urls[i] #여기에 이제, 신문사들의 main 홈페이지가 들어갈 예정
-            article_text = get_article_text(url)
+        for i in articlesS:
+            article_text = get_article_textK(i)
             sep_text.append(article_text)
         return sep_text
 Arcs = []
@@ -91,6 +86,9 @@ Arcs.append(take_txt("http://rss.donga.com/total.xml"))
 Arcs.append(take_txt("https://news.kbs.co.kr/include/aispeaker/rss/radioNews_g.xml"))
 Arcs.append(take_txt("http://www.khan.co.kr/rss/rssdata/total_news.xml"))
 Arcs.append(take_txt("https://www.pressian.com/api/v3/site/rss/news"))
+
+
+
 
 
 #여기부터 단어 분석 시작!  [250624]
@@ -321,19 +319,24 @@ def play() -> None:
     '로','매우','뒤','율','날','곳','전','저','후','말','며','도','지금','당시','약','이후','팀','남','회','로서','순','년','장','관'
     ,'명','최근','지난','이후','통해','탁','단','김용','기자','사','돔','루','역사상','임','뉴스','섹터','구독','를','임','공유','복사'
     ,'창','방','사사건건','퍼','가기','국','꼭','인','중계방송','크랩','위해','도움말','모습','방송','무','짝','부','재방송',
-    '톡','살','뉴스라인','센터','선'])
+    '톡','살','뉴스라인','센터','선','타이어','세','넥센','김','김','스포츠조선','개','맷','붙여넣기','등록','편집','내','맘','댓글','닉네임','추천',
+    '입력','재','기사','회원','전화번호','주소','일자','번호','신청','배포','텍스트','클릭','쏙'])
     counted_text = []
     sizeof_text = []
-    print(Arcs[0][0])
-    print("----------------------------------------------------------------------------------")
-    print(Arcs[0][1])
+
     for i in range(len(Arcs)):
         for j in range(len(Arcs[i])):
-            words = preprocess_text(Arcs[i][j],language)
-            song,kim = count_words(words, stop_words, start_rank, end_rank)
-            counted_text.append(song)
+            words = preprocess_text(Arcs[i][j], language)
+            song, kim = count_words(words, stop_words, start_rank, end_rank)
+            # song은 dict → value 기준으로 내림차순 정렬
+            if len(song) <10:
+                continue
+            sorted_song = dict(sorted(song.items(), key=lambda item: item[1], reverse=True))
+            counted_text.append(sorted_song)
             sizeof_text.append(kim)
+
     return counted_text, sizeof_text
+
 
 T, S = play() #각 크기에 맞게 점수화 하기
 word_score = {}
@@ -346,8 +349,12 @@ for i in T:
         else:
             word_score[j] = int((i[j]/S[now]*1000))
     now+=1
+sorted_word_score = dict(sorted(word_score.items(), key=lambda item: item[1], reverse=True))
 
-print(word_score) # 75개의 기사가 합쳐진 score
+print(sorted_word_score) # 75개의 기사가 합쳐진 score
+# 1. 단어-점수 딕셔너리 저장
+df_score = pd.DataFrame(list(sorted_word_score.items()), columns=['단어', '점수'])
+df_score.to_csv("단어점수.csv", index=False, encoding='utf-8-sig')
 
 #여기서부터 연관어 처리!
 
@@ -355,9 +362,34 @@ print(word_score) # 75개의 기사가 합쳐진 score
 def Related_words():
     rel_list = []
     for i in range(len(T)):
-        for j in range(len(T[i])):
-            sorted_dict = list((sorted(T[i].items(), key=lambda item: item[1])))
-            rel_list.append(sorted_dict[:5])
+        str_only = {k: v for k, v in T[i].items() if isinstance(k, str)}
+        sorted_dict = sorted(str_only.items(), key=lambda item: item[1], reverse=True)
+        rel_list.append(sorted_dict[:5])  # (key, value) 쌍 그대로 저장
     return rel_list
-print("------------------------------------------------")
+
+    return rel_list
 print(Related_words())
+
+# 관련 단어 리스트 가져오기
+related_list = Related_words()  # [(단어, 점수), ...] 리스트가 여러 개
+
+# 행 구성
+rows = []
+for group in related_list:
+    row = []
+    for word, score in group:
+        row.extend([word, score])
+    # 5개 미만일 경우 빈 칸 채움 (안전하게)
+    while len(row) < 10:
+        row.extend(["", ""])
+    rows.append(row)
+
+# 열 이름 생성
+columns = []
+for i in range(1, 6):
+    columns.append(f'연관단어{i}')
+    columns.append(f'점수{i}')
+
+# 데이터프레임 생성 및 저장
+df_related = pd.DataFrame(rows, columns=columns)
+df_related.to_csv("연관단어점수.csv", index=False, encoding='utf-8-sig')
