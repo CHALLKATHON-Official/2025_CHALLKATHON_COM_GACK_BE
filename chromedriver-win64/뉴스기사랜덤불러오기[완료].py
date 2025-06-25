@@ -349,13 +349,14 @@ for i in T:
         else:
             word_score[j] = int((i[j]/S[now]*1000))
     now+=1
+# 딕셔너리 정렬 (원본)
 sorted_word_score = dict(sorted(word_score.items(), key=lambda item: item[1], reverse=True))
+print(sorted_word_score)  # 75개의 기사가 합쳐진 score
 
-print(sorted_word_score) # 75개의 기사가 합쳐진 score
-# 1. 딕셔너리를 DataFrame으로 변환
+# 딕셔너리를 DataFrame으로 변환
 df_score = pd.DataFrame(list(sorted_word_score.items()), columns=['단어', '점수'])
 
-# 2. 특정 단어 점수 조정
+# 특정 단어 점수 조정
 adjustments = {
     "서울특별시": -700,
     "서울": -600,
@@ -392,9 +393,13 @@ for word, delta in adjustments.items():
     else:
         print(f"단어 '{word}'는 데이터에 존재하지 않음")
 
-# 3. 저장
+# 조정 후 점수 기준으로 다시 정렬
+df_score = df_score.sort_values(by="점수", ascending=False)
+
+# 저장
 df_score.to_csv("단어점수.csv", index=False, encoding='utf-8-sig')
-print("저장 완료: 단어점수.csv")
+print("저장 완료: 단어점수.csv (정렬 포함)")
+
 
 #여기서부터 연관어 처리!
 
