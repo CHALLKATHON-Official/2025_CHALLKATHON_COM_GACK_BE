@@ -17,249 +17,234 @@ def read_csv_file(file_path, encoding='utf-8-sig'):
 
 # 정확한 경로 (확장자 `.csv` 주의!)
 folder = "C:/Users/katdi/OneDrive/바탕 화면/chromedriver-win64"
-word_score = read_csv_file(os.path.join(folder, "단어점수.csv"))
-rel_words = read_csv_file(os.path.join(folder, "연관단어점수.csv")) #단어1, 점수1, 단어2, 점수2, ...
-main_words = read_csv_file(os.path.join(folder, "신문사메인단어.csv"))
+word_score = read_csv_file(os.path.join(folder, "단어점수0626_1333.csv"))
+rel_words = read_csv_file(os.path.join(folder, "연관단어점수0625_2200.csv")) #단어1, 점수1, 단어2, 점수2, ...
+main_words = read_csv_file(os.path.join(folder, "신문사메인단어0625_2200.csv"))
 google_trend = read_csv_file(os.path.join(folder, "구글트렌드.csv"))
-
-print(word_score)
-print(rel_words)
-print(main_words)
-print(google_trend)
 #=====================================================================================================================
-
-pd.set_option('display.max_rows', 100)
-pd.set_option('display.max_columns', 10)
-pd.set_option('display.width', 1000)
-
-okt = Okt()
-
-def normalize(text):
-    if not isinstance(text, str):
-        return ""
-    return re.sub(r"\s+", "", text.strip().lower())
 
 def convert_score(value):
     if pd.isna(value) or not isinstance(value, str):
         return 0
     value = value.replace(" ", "")
     score_mapping = {
-        "100+": 100, "200+": 200, "500+": 500, "1000+": 1000,
-        "5000+": 5000, "1만+": 10000, "2만+": 20000,
+        "100+": 10, "200+": 20, "500+": 50, "1000+": 100,
+        "5000+": 500, "1만+": 1000, "2만+": 2000,
     }
     if value in score_mapping:
-        return score_mapping[value]
+        base_score = score_mapping[value]
+        if base_score >= 1000:
+            return int(base_score * 0.65)
+        else:
+            return base_score
     if "만+" in value:
         try:
-            return int(float(value.replace("만+", "")) * 10000)
+            base_score = int(float(value.replace("만+", "")) * 10000)
+            if base_score >= 1000:
+                return int(base_score * 0.65)
+            return base_score
         except:
             return 0
     if "천+" in value:
         try:
-            return int(float(value.replace("천+", "")) * 1000)
+            base_score = int(float(value.replace("천+", "")) * 1000)
+            if base_score >= 1000:
+                return int(base_score * 0.65)
+            return base_score
         except:
             return 0
     if value.endswith("+"):
         try:
-            return int(value.replace("+", ""))
+            base_score = int(value.replace("+", ""))
+            if base_score >= 1000:
+                return int(base_score * 0.65)
+            return base_score
         except:
             return 0
     return 0
 
-def preprocess_text(text):
-    return okt.nouns(text)
+google_trend["점수"] = google_trend["검색량"].apply(convert_score)
 
-def count_words(words, stop_words):
-    from collections import defaultdict
-    freq = defaultdict(int)
-    for word in words:
-        if word not in stop_words:
-            freq[word] += 1
-    return dict(freq)
+print("=====================연관어========================")
 
-def compute_score(internal_freq, external_score, max_internal_freq):
-    norm_internal = internal_freq / max_internal_freq if max_internal_freq > 0 else 0
-    norm_external = min(external_score / 10000, 1.0)
-    return round(0.7 * norm_internal + 0.3 * norm_external, 3)
+WSD = word_score["점수"].to_dict()
+MWD = main_words["점수"].to_dict()
+GTD = google_trend["점수"].to_dict()
 
-def merge_data(internal_dict, external_list):
-    merged = {}
-    external_dict = {normalize(item["단어"]): item["수치점수"] for item in external_list}
-    max_internal_freq = max(internal_dict.values()) if internal_dict else 1
-    for word, freq in internal_dict.items():
-        norm_word = normalize(word)
-        ext_score = external_dict.get(norm_word, 0)
-        score = compute_score(freq, ext_score, max_internal_freq)
-        merged[norm_word] = score
-    return merged
-
-def extract_related_keyword_scores_expanded(df, final_scores_keys):
-    related_score_dict = {}
-    for main_word in final_scores_keys:
-        related_words_set = set()
-        main_word_norm = normalize(main_word)
-        for _, row in df.iterrows():
-            trend = str(row.get("트렌드", "")).strip()
-            related_raw = str(row.get("트렌드 분석", "")).strip()
-            trend_norm = normalize(trend)
-            related_raw_norm = normalize(related_raw)
-
-            if main_word_norm == trend_norm or main_word_norm in related_raw_norm:
-                words = [w.strip() for w in related_raw.split(",") if w.strip()]
-                for w in words:
-                    w_norm = normalize(w)
-                    # 자기 자신은 제외
-                    if w_norm != main_word_norm:
-                        related_words_set.add(w.replace(" ", ""))  # 공백 제거해서 저장
-
-        related_words_list = list(related_words_set)
-        score_dict = {}
-        for idx, word in enumerate(related_words_list):
-            score = round(max(1.0 - idx * 0.1, 0.1), 2)
-            score_dict[word] = score
-        related_score_dict[main_word] = score_dict
-    return related_score_dict
+Final_dict = {}
+for i in WSD:
+    Final_dict[i] = int(WSD[i] * 1.5)
+for i in MWD:
+    if i in Final_dict:
+        Final_dict[i] += int(MWD[i] * 0.4)
+    else:
+        Final_dict[i] = int(MWD[i] * 0.4)
+for i in GTD:
+    if i in Final_dict:
+        Final_dict[i] += int(GTD[i] * 0.2)
+    else:
+        Final_dict[i] = int(GTD[i] * 0.1)
+Final_dict["대통령"] = int(Final_dict["대통령"]/4)
+Final_dict["경제"] = int(Final_dict["경제"]/3)
+Final_dict["재난"] = int(Final_dict["재난"]/1.3)
+Final_dict["서울특별시"] = int(Final_dict["서울특별시"]/1.3)
+Final_dict["의원"] = int(Final_dict["의원"]/1.3)
+Final_dict["교육"] = int(Final_dict["교육"]/2)
+Final_dict["사업"] = int(Final_dict["사업"]/1.3)
+Final_dict["특검"] = int(Final_dict["특검"]/1.3)
+Final_dict["정부"] = int(Final_dict["정부"]/1.3)
+Final_dict["응원"] = int(Final_dict["정부"]/1.3)
+Final_dict["교"] = 0
+Final_dict["무릎"] = int(Final_dict["무릎"]/2)
+Final_dict["계획"] = int(Final_dict["계획"]/1.5)
+Final_dict["이번"] = int(Final_dict["이번"]/1.5)
+Final_dict["후원"] = int(Final_dict["후원"]/1.5)
+Final_dict["스페셜"] = int(Final_dict["스페셜"]/2)
+Final_dict["수사"] = int(Final_dict["수사"]/5)
+Final_dict["대해"] = 0
+Final_dict["요구"] = 0
+Final_dict["조사"] = int(Final_dict["조사"]/4)
 
 
-def guess_category(word):
-    categories = {
-        "정치": ["국방부장관", "장관", "의원", "정치", "정부", "안규백"],
-        "스포츠": ["맨시티", "축구", "야구", "선수", "쇼헤이", "오타니"],
-        "연예": ["배우", "가수", "영화", "드라마"],
-        "경제": ["주식", "투자", "가격", "증권", "금융"],
-    }
-    word_lower = word.lower()
-    for cat, keywords in categories.items():
-        for kw in keywords:
-            if kw.lower() in word_lower:
-                return cat
-    return "기타"
+Final_dict["공감"] = int(Final_dict["공감"]/1.5)
+Final_dict["확대"] = int(Final_dict["확대"]/1.5)
+Final_dict["상품권"] = int(Final_dict["상품권"]/1.5)
+Final_dict["홍기"] = int(Final_dict["홍기"]/1.5)
+Final_dict["지원"] = int(Final_dict["지원"]/1.5)
+Final_dict["전체"] = int(Final_dict["전체"]/1.5)
 
-def get_search_volume(norm_word, df):
-    for i, trend in enumerate(df["트렌드"]):
-        trend_norm = normalize(trend)
-        # 부분 매칭: norm_word가 trend_norm 안에 있거나 trend_norm이 norm_word 안에 있으면 매칭
-        if norm_word in trend_norm or trend_norm in norm_word:
-            raw_score = df["검색량"].iloc[i]
-            print(f"찾음: {norm_word} -> {raw_score}")
-            return convert_score(raw_score)
-    print(f"못 찾음: {norm_word}")
-    return None
+Final_dict["검색어"] = 0
+Final_dict["금지"] = 0
+Final_dict["전체"] = int(Final_dict["전체"]/1.5)
 
-def play_from_google_csv():
-    print("\n[실행] Google 트렌드 CSV 기반 키워드 분석 시작...")
+Final_dict["사용"] = 0
+Final_dict["이용"] = 0
+Final_dict["수집"] = 0
+Final_dict["기능"] = 0
+Final_dict["글자"] = 0
+Final_dict["설정"] = 0
+Final_dict["스팸성"] = 0
+Final_dict["방지"] = 0
+Final_dict["크기"] = 0
+Final_dict["게시"] = 0
+Final_dict["시"] = 0
+Final_dict["두"] = 0
+Final_dict["교"] = 0 
+Final_dict["프레"] = 0
+Final_dict["시안"] = 0
+Final_dict["키"] = 0
+Final_dict["중이"] = 0
+Final_dict["길"] = 0
+Final_dict["달"] = 0
 
-    stop_words = set([
-        '은','는','나','너','가','요','다','습니다','의','측','과','것','이','및','때',
-        '제','위','안','바','그','수','기타','정','좀','더','또한','그리고',
-        '알','뉴스','보기','사람','이유','대한'
-    ])
+Final_dict["대표"] = int(Final_dict["대표"]/1.5)
+Final_dict["사회"] = int(Final_dict["사회"]/1.5)
+Final_dict["관련"] = int(Final_dict["관련"]/1.5)
+Final_dict["이상"] = int(Final_dict["이상"]/1.5)
+Final_dict["전체"] = int(Final_dict["전체"]/1.5)  # 재확인용
+Final_dict["정책"] = int(Final_dict["정책"]/1.5)
+Final_dict["시설"] = int(Final_dict["시설"]/1.5)
+Final_dict["평가"] = int(Final_dict["평가"]/1.5)
+Final_dict["대상"] = int(Final_dict["대상"]/1.5)
+Final_dict["기준"] = int(Final_dict["기준"]/1.5)
+Final_dict["문화"] = int(Final_dict["문화"]/1.5)
+Final_dict["운영"] = int(Final_dict["운영"]/1.5)
+Final_dict["가구"] = int(Final_dict["가구"]/1.5)
+Final_dict["기획"] = int(Final_dict["기획"]/1.5)
+Final_dict["활용"] = int(Final_dict["활용"]/1.5)
+Final_dict["요구"] = int(Final_dict["요구"]/1.5)
+Final_dict["목적"] = int(Final_dict["목적"]/1.5)
+Final_dict["공개"] = int(Final_dict["공개"]/1.5)
+Final_dict["계좌"] = int(Final_dict["계좌"]/1.5)
+Final_dict["세계"] = int(Final_dict["세계"]/1.5)
+Final_dict["시민"] = int(Final_dict["시민"]/1.5)
+Final_dict["특검"] = int(Final_dict["특검"]/2)
+Final_dict["대표"] = 0
 
-    try:
-        df = google_trend
-    except Exception as e:
-        print(f"[오류] CSV 로드 실패: {e}")
-        return
+Final_dict["조사"] = int(Final_dict["조사"] / 1.5)
+Final_dict["응원"] = int(Final_dict["응원"] / 2)  
+Final_dict["악수"] = int(Final_dict["악수"] / 2)
+Final_dict["스페셜"] = int(Final_dict["스페셜"] / 3)  
+Final_dict["청소년"] = int(Final_dict["청소년"] / 1.5)
+Final_dict["서울특별시"] = int(Final_dict["서울특별시"] / 2)  
+Final_dict["의원"] = int(Final_dict["의원"] / 2) 
+Final_dict["개인정보"] = 0
+Final_dict["신문"] = int(Final_dict["신문"] / 1.5)
+Final_dict["지원"] = int(Final_dict["지원"] / 2) 
+Final_dict["연설"] = int(Final_dict["연설"] / 1.5)
+Final_dict["빌딩"] = int(Final_dict["빌딩"] / 3) 
+Final_dict["전국"] = int(Final_dict["전국"] / 3)  
 
-    df["수치점수"] = df["검색량"].apply(convert_score)
+Final_dict["사회"] = int(Final_dict["사회"] / 2)
+Final_dict["정책"] = int(Final_dict["정책"] / 2)
+Final_dict["사업"] = int(Final_dict["사업"] / 2)
+Final_dict["대표"] = int(Final_dict["대표"] / 1.5)
+Final_dict["국민"] = int(Final_dict["국민"] / 1.5)
+Final_dict["대상"] = int(Final_dict["대상"] / 1.5)
+Final_dict["세계"] = int(Final_dict["세계"] / 1.5)
+Final_dict["관련"] = int(Final_dict["관련"] / 2)
+Final_dict["전체"] = int(Final_dict["전체"] / 2)
+Final_dict["계획"] = int(Final_dict["계획"] / 2)
+Final_dict["확대"] = int(Final_dict["확대"] / 1.5)
 
-    all_keywords = ",".join(df["트렌드 분석"].dropna())
-    all_words = preprocess_text(all_keywords)
-    internal_freq = count_words(all_words, stop_words)
+Final_dict["기능"] = int(Final_dict["기능"] / 3)
+Final_dict["사용"] = int(Final_dict["사용"] / 3)
+Final_dict["설정"] = int(Final_dict["설정"] / 3)
+Final_dict["글자"] = int(Final_dict["글자"] / 3)
+Final_dict["크기"] = int(Final_dict["크기"] / 3)
+Final_dict["게시"] = int(Final_dict["게시"] / 3)
+Final_dict["프레"] = int(Final_dict["프레"] / 3)
+Final_dict["시안"] = int(Final_dict["시안"] / 3)
+Final_dict["스팸성"] = int(Final_dict["스팸성"] / 3)
+Final_dict["방지"] = int(Final_dict["방지"] / 3)
 
-    external_list = [
-        {"단어": trend.strip(), "수치점수": score}
-        for trend, score in zip(df["트렌드"], df["수치점수"])
-    ]
+Final_dict["연설"] = int(Final_dict["연설"] / 2)
+Final_dict["청소년"] = int(Final_dict["청소년"] / 2)
+Final_dict["빌딩"] = int(Final_dict["빌딩"] / 2)
+Final_dict["시설"] = int(Final_dict["시설"] / 2)
+Final_dict["신문"] = int(Final_dict["신문"] / 2)
+Final_dict["내란"] = int(Final_dict["신문"] / 3)
+Final_dict["치료"] = int(Final_dict["치료"] / 4)
+Final_dict["지급"] = int(Final_dict["지급"] / 4)
 
-    final_scores = merge_data(internal_freq, external_list)
+common_words = [
+    "서울", "서울시", "서울특별시", "정부", "국회", "국민", "정치", "경제", "사회",
+    "교육", "산업", "기업", "국가", "정책", "청년", "시민", "경찰", "병원", "시간", "사업",
+    "사업자", "관련", "정보", "제도", "조사", "시대", "시설", "공감", "지원", "계획", "대표",
+    "세계", "문화", "활용", "기준", "대상", "도시", "국내", "정책", "입장", "내용", "결과", "행사"
+]
 
-    seen = set()
-    sorted_scores = sorted(final_scores.items(), key=lambda x: x[1], reverse=True)
-    top_n = []
-    for k, v in sorted_scores:
-        if k not in seen:
-            top_n.append((k, v))
-            seen.add(k)
+for word in common_words:
+    if word in Final_dict:
+        Final_dict[word] = int(Final_dict[word] / 3) 
 
-    trend_list = df["트렌드"].astype(str).tolist()
-    trend_norm_list = [normalize(t) for t in trend_list]
+generic_words = [
+    "이번", "이상", "단계", "가장", "힘", "정보", "내용", "사실", "제공", "시간",
+    "참여", "건", "일", "새", "기획", "추가", "확인", "활동", "사람", "모두", "전환", "시장"
+]
 
-    related_score_dict = extract_related_keyword_scores_expanded(df, [k for k, _ in top_n])
+for word in generic_words:
+    if word in Final_dict:
+        Final_dict[word] = int(Final_dict[word] / 3)
 
-    result_list = []
-    added_words = set()  # 원본 단어 중복 체크용
+selective_words = [
+    "검찰", "법원", "청소년", "연설", "출석", "출범", "기각", "소환", "기자", "인터넷",
+    "연구", "기관", "위원회", "복지", "사고", "경기", "전쟁", "사건", "발표", "문제", "내용", "수사"
+]
 
-    for norm_word, score in top_n:
-        matched_trends = [t for t in trend_list if norm_word == normalize(t) or norm_word in normalize(t)]
-        original_word = matched_trends[0] if matched_trends else norm_word
+for word in selective_words:
+    if word in Final_dict:
+        Final_dict[word] = int(Final_dict[word] / 3)
+        
 
-        # 중복 단어면 건너뛰기
-        if original_word in added_words:
-            continue
-        added_words.add(original_word)
+output = pd.DataFrame(list(Final_dict.items()), columns=['단어', '점수'])
 
-        internal = internal_freq.get(original_word, 0)
-        external = next((x["수치점수"] for x in external_list if normalize(x["단어"]) == norm_word), 0)
-        final_score = score
-        related_words = related_score_dict.get(norm_word, {})
+output  = output.sort_values(by='점수', ascending=False)
 
-        category_str = "정보없음"
-        for i, trend_norm in enumerate(trend_norm_list):
-            if norm_word == trend_norm or normalize(original_word) == trend_norm:
-                if "카테고리" in df.columns and pd.notna(df["카테고리"].iloc[i]):
-                    category_str = str(df["카테고리"].iloc[i])
-                else:
-                    category_str = guess_category(original_word)
-                break
-
-        search_volume = get_search_volume(norm_word, df)
-
-        result_list.append({
-            "word": original_word,
-            "internal_freq": internal,
-            "external_score": external,
-            "final_score": final_score,
-            "search_volume": search_volume,
-            "related_keywords": related_words,
-            "category": category_str
-        })
-
-    print("\n[분석 결과 요약]")
-    for r in result_list:
-        print(f"word: {r['word']}, score: {r['final_score']}, search_volume: {r['search_volume']}, category: {r['category']}")
-
-    print("\n[연관어 및 점수]")
-    for r in result_list:
-        print(f"{r['word'].replace(' ', '')}:")
-        for k, v in r["related_keywords"].items():
-            print(f"  {k.replace(' ', '')} -> {v}")
-
-
-    os.makedirs("output", exist_ok=True)
-    pd.DataFrame([{
-        "word": r["word"],
-        "internal_freq": r["internal_freq"],
-        "external_score": r["external_score"],
-        "final_score": r["final_score"],
-        "search_volume": r["search_volume"],
-        "category": r["category"]
-    } for r in result_list]).to_csv("output/final_scores.csv", index=False, encoding="utf-8-sig")
-
-    with open("output/result_for_frontend.json", "w", encoding="utf-8") as f:
-        json.dump(result_list, f, ensure_ascii=False, separators=(',', ':'))
-
-    with open("output/related_keywords.json", "w", encoding="utf-8") as f:
-        json.dump(related_score_dict, f, ensure_ascii=False, indent=2)
-
-    print("[완료] 모든 결과 저장 완료!")
-    return result_list, related_score_dict
+output.to_csv("트렌드_점수_결과.csv", index=False, encoding='utf-8-sig')
 
 
-if __name__ == "__main__":
-    play_from_google_csv()
-    schedule.every(10).minutes.do(play_from_google_csv)
-    print("[대기] 10분마다 자동 실행 중... Ctrl+C로 중단")
-    while True:
-        schedule.run_pending()
-        time.sleep(1)
+file_name = "트렌드_점수_결과.json"
+
+with open(file_name, "w", encoding="utf-8") as f:
+    json.dump(Final_dict, f, ensure_ascii=False, indent=2)

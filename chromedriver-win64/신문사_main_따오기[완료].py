@@ -219,7 +219,7 @@ def play() -> None:
     df = pd.DataFrame(list(words.items()), columns=["단어", "점수"])
     df = df.sort_values(by="점수", ascending=False)  # 점수 기준 내림차순 정렬
 
-    df.to_csv("신문사메인단어.csv", index=False, encoding="utf-8-sig")
+    df.to_csv("신문사메인단어0626_1328.csv", index=False, encoding="utf-8-sig")
     print(words)
 
 play()
